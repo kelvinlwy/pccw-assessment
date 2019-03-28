@@ -8,16 +8,14 @@ exports.example = () => 'hello world';
 exports.stripPrivateProperties = (props, arr) => {
   return arr.map((item) => {
     props.forEach((prop) => {
-      if (item[prop]) {
-        delete item[prop];
-      }
+      delete item[prop];
     });
     return item;
   });
 };
 
 exports.excludeByProperty = (prop, arr) => {
-  return arr.filter(item => item[prop] === undefined);
+  return arr.filter(item => !item.hasOwnProperty(prop));
 };
 
 exports.sumDeep = (arr) => {
@@ -33,17 +31,21 @@ exports.sumDeep = (arr) => {
 };
 
 exports.applyStatusColor = (colorMap, arr) => {
-  return arr.map(item => {
-    const color = Object.keys(colorMap).find(key => {
-      return colorMap[key].includes(item.status);
-    });
+  // Create new color map with status as key
+  const newColorMap = {};
+  Object.keys(colorMap).forEach(key => {
+    colorMap[key].forEach(status => {
+      newColorMap[status] = key;
+    })
+  });
 
+  return arr.map(item => {
     return {
       ...item,
-      color
+      color: newColorMap[item.status]
     }
-  }).filter(status => {
-    return status.color !== undefined
+  }).filter((status) => {
+    return status.color;
   });
 };
 
@@ -52,25 +54,24 @@ exports.createGreeting = (greet, greeting) => {
 };
 
 exports.setDefaults = defaultProps => props => {
-  let newObject = Object.assign({}, props);
-
-  Object.keys(defaultProps).forEach(prop => {
-    if (newObject[prop] === undefined) {
-      newObject[prop] = defaultProps[prop];
-    }
-  });
-  return newObject;
+  return Object.assign({}, defaultProps, props);
 };
 
 exports.fetchUserByNameAndUsersCompany = async (name, services) => {
-  const status = await services.fetchStatus();
-  const users = await services.fetchUsers();
+  return await Promise.all([
+    await services.fetchStatus().then(status => {
+      return {status};
+    }),
+    await Promise.all(
+      await services.fetchUsers()
+    ).then(async users => {
+      const user = users.find(item => {
+        return item.name.localeCompare(name) === 0;
+      });
 
-  const user = users.find(item => {
-    return item.name.localeCompare(name) === 0;
+      return {user: user, company: await services.fetchCompanyById(user.companyId)};
+    })
+  ]).then((result) => {
+    return {...result[0], ...result[1]};
   });
-
-  const company = await services.fetchCompanyById(user.companyId);
-
-  return {status, user, company};
 };
